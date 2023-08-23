@@ -1,18 +1,50 @@
 import "./App.css";
 import { useEffect, useState } from "react";
-import { Page } from "./components/Page";
+import { Data } from "./components/Data";
 import { Filter } from "./components/Filter";
+import { Pagination } from "./components/Pagination";
+import { Loading } from "./components/Loading";
+import { NoResults } from "./components/NoResults";
+
+const DEFAULT_FILTER = "All";
 
 function App() {
   const [data, setData] = useState<any[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState<string>("All");
+  const [selectedFilter, setSelectedFilter] = useState<string>(DEFAULT_FILTER);
   const [loading, setLoading] = useState(true);
   const [currPage, setCurrPage] = useState(1);
-  const [isLastPage, setIsLastPage] = useState(false);
+  const [maybeLastPage, setMaybeLastPage] = useState<null | number>(null);
   const [error, setError] = useState(false);
+  const [minPage, setMinPage] = useState(1);
 
-  const getNextPage = () => {
-    setCurrPage((prev) => prev + 1);
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handlePrevPage = () => {
+    if (minPage === 1) {
+      return;
+    }
+    const newPage = minPage - 5;
+    setMinPage(newPage);
+    setCurrPage(newPage);
+  };
+
+  const handleNextPage = () => {
+    const maxPage = minPage + 4;
+    if (typeof maybeLastPage === "number" && maxPage + 1 >= maybeLastPage) {
+      return;
+    }
+    const newPage = minPage + 5;
+    setMinPage(newPage);
+    setCurrPage(newPage);
+  };
+
+  const handleClickPage = (page: number) => {
+    if (typeof maybeLastPage === "number" && page >= maybeLastPage) {
+      return;
+    }
+    setCurrPage(page);
   };
 
   const onChangeFilter = (value: string) => {
@@ -46,15 +78,15 @@ function App() {
       );
       const json = await res.json();
       if (json.length) {
-        const newData = [...data, ...json];
-        setData(newData);
+        setData(json);
       } else {
-        setIsLastPage(true);
+        setMaybeLastPage(currPage);
       }
     } catch {
       setError(true);
     }
     setLoading(false);
+    scrollToTop();
   };
 
   useEffect(() => {
@@ -64,24 +96,27 @@ function App() {
   return (
     <main>
       <Filter onChange={onChangeFilter} selectedOption={selectedFilter} />
-      {getFilteredData().length ? (
+      {!loading && !getFilteredData().length ? (
+        <NoResults />
+      ) : (
         getFilteredData().map((data: any, i: number) => (
           <div key={data.id} className="page-container">
-            <Page data={data} />
+            <Data data={data} />
           </div>
         ))
-      ) : (
-        <p>No data found</p>
       )}
-      {loading && <p>loading...</p>}
-      {error && <div>something went wrong while loading...</div>}
-      {isLastPage ? (
-        <p>- End of Repos -</p>
-      ) : (
-        <button className={`page-btn`} onClick={() => getNextPage()}>
-          <p>get next page</p>
-        </button>
-      )}
+      {loading && <Loading />}
+
+      {!loading && error && <p>something went wrong...</p>}
+
+      <Pagination
+        currPage={currPage}
+        minPage={minPage}
+        maybeLastPage={maybeLastPage}
+        handlePrevPage={handlePrevPage}
+        handleNextPage={handleNextPage}
+        handleClickPage={handleClickPage}
+      />
     </main>
   );
 }
